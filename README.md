@@ -1,16 +1,39 @@
-# campus_hub
+#  College-Attendance Mobile App
 
-A new Flutter project.
+> A Flutter + Firebase college management app for Admins, Teachers, and Students.
 
-## Getting Started
+---
 
-This project is a starting point for a Flutter application.
+##  Features
 
-A few resources to get you started if this is your first Flutter project:
+###  Admin
+- Add / Edit / Delete Teachers & Students
+- Bulk Upload students via Excel (.xlsx) or CSV
+- Manage Subjects & Timetable
+- Course & Division wise filtering + bulk delete
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+###  Teacher
+- Take attendance with lecture number tracking
+- Pending attendance alerts (last 7 days)
+- Upload & view student marks (exam wise)
+- Post notices by category
+- Download attendance PDF reports
+- View personal timetable
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+###  Student
+- Live attendance status (Present / Absent / Pending)
+- Subject wise attendance % with 75% tracker
+- View marks with grade breakdown
+- Read teacher notices
+- View daily timetable
+
+---
+
+##  Platforms
+
+- ✅ Android
+- ✅ Web
+  
+---
+
+> Built with  for college academic management
