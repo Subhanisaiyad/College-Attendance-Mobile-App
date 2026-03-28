@@ -5,11 +5,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class ViewTimetable extends StatefulWidget {
   final String teacherId;
   final String teacherName;
+  final String collegeId; // ✅
 
   const ViewTimetable({
     super.key,
     required this.teacherId,
     required this.teacherName,
+    required this.collegeId,
   });
 
   @override
@@ -85,6 +87,7 @@ class _ViewTimetableState extends State<ViewTimetable> {
         future: FirebaseFirestore.instance
             .collection("timetable")
             .where("teacherId", isEqualTo: widget.teacherId)
+            .where("collegeId", isEqualTo: widget.collegeId) // ✅
             .get(),
 
         builder: (context, snapshot) {
@@ -301,8 +304,9 @@ class _ViewTimetableState extends State<ViewTimetable> {
                     final room      = lec["room"]        as String? ?? "TBA";
                     final startTime = lec["startTime"]   as String? ?? "";
                     final endTime   = lec["endTime"]     as String? ?? "";
-                    final lectureNo = (lec["lectureNo"] as num?)?.toInt() ?? (i + 1);
-                    final color     = _colorForSubject(subject);
+                    final lectureNo   = (lec["lectureNo"]   as num?)?.toInt() ?? (i + 1);
+                    final lectureType = lec["lectureType"] as String? ?? "LEC";
+                    final color       = _colorForSubject(subject);
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
@@ -343,9 +347,9 @@ class _ViewTimetableState extends State<ViewTimetable> {
                                     ),
                                   ),
                                   const SizedBox(height: 2),
-                                  const Text(
-                                    "LEC",
-                                    style: TextStyle(
+                                  Text(
+                                    lectureType,
+                                    style: const TextStyle(
                                         color: Colors.white60,
                                         fontSize: 9,
                                         letterSpacing: 1),

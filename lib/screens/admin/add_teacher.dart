@@ -4,220 +4,169 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AddTeacher extends StatefulWidget {
-  const AddTeacher({super.key});
+  final String collegeId; // ✅
+
+  const AddTeacher({super.key, required this.collegeId});
 
   @override
   State<AddTeacher> createState() => _AddTeacherState();
 }
 
 class _AddTeacherState extends State<AddTeacher> {
-
-  final _formKey = GlobalKey<FormState>();
-
-  final nameController = TextEditingController();
-  final emailController = TextEditingController();
-  final contactController = TextEditingController();
-  final usernameController = TextEditingController();
-  final passwordController = TextEditingController();
-
-  bool isLoading = false;
+  final _formKey         = GlobalKey<FormState>();
+  final nameCtrl         = TextEditingController();
+  final emailCtrl        = TextEditingController();
+  final contactCtrl      = TextEditingController();
+  final usernameCtrl     = TextEditingController();
+  final passwordCtrl     = TextEditingController();
+  bool isLoading         = false;
 
   Future<void> saveTeacher() async {
     if (!_formKey.currentState!.validate()) return;
-
     setState(() => isLoading = true);
 
     try {
-      // 🔎 Check duplicate username
-      final checkUser = await FirebaseFirestore.instance
+      // Check duplicate username within same college
+      final check = await FirebaseFirestore.instance
           .collection("teachers")
-          .where("username", isEqualTo: usernameController.text.trim())
+          .where("username",  isEqualTo: usernameCtrl.text.trim())
+          .where("collegeId", isEqualTo: widget.collegeId)
           .get();
 
-      if (checkUser.docs.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Username already exists")),
-        );
+      if (check.docs.isNotEmpty) {
+        _snack("Username already exists");
         setState(() => isLoading = false);
         return;
       }
 
-      // ✅ Save Teacher
       await FirebaseFirestore.instance.collection("teachers").add({
-        "name": nameController.text.trim(),
-        "email": emailController.text.trim(),
-        "contact": contactController.text.trim(),
-        "username": usernameController.text.trim(),
-        "password": passwordController.text.trim(),
-        "role": "teacher",
+        "name":      nameCtrl.text.trim(),
+        "email":     emailCtrl.text.trim(),
+        "contact":   contactCtrl.text.trim(),
+        "username":  usernameCtrl.text.trim(),
+        "password":  passwordCtrl.text.trim(),
+        "role":      "teacher",
+        "collegeId": widget.collegeId, // ✅
         "createdAt": Timestamp.now(),
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Teacher Added Successfully")),
-      );
-
-      Navigator.pop(context);
+      _snack("Teacher Added Successfully");
+      if (mounted) Navigator.pop(context);
 
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      _snack("Error: $e");
     }
 
     setState(() => isLoading = false);
+  }
+
+  void _snack(String msg) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F0E6),
-
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E3A5F),
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text(
-          "Add Teacher",
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text("Add Teacher",
+            style: TextStyle(color: Colors.white)),
         centerTitle: true,
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Form(
           key: _formKey,
-          child: Column(
-            children: [
+          child: Column(children: [
+            const SizedBox(height: 20),
 
-              const SizedBox(height: 20),
+            TextFormField(
+              controller: nameCtrl,
+              decoration: _input("Teacher Name", Icons.person),
+              validator: (v) =>
+              v == null || v.trim().isEmpty ? "Enter teacher name" : null,
+            ),
+            const SizedBox(height: 20),
 
-              // Teacher Name
-              TextFormField(
-                controller: nameController,
-                decoration: buildInput("Teacher Name", Icons.person),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return "Enter teacher name";
-                  }
-                  return null;
-                },
-              ),
+            TextFormField(
+              controller: emailCtrl,
+              decoration: _input("Email", Icons.email),
+              keyboardType: TextInputType.emailAddress,
+              validator: (v) {
+                if (v == null || v.isEmpty) return "Enter email";
+                if (!RegExp(r'^[\w.]+@[\w.]+\.[a-z]{2,}$').hasMatch(v.trim()))
+                  return "Enter valid email";
+                return null;
+              },
+            ),
+            const SizedBox(height: 20),
 
-              const SizedBox(height: 20),
+            TextFormField(
+              controller: contactCtrl,
+              decoration: _input("Contact Number", Icons.phone),
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(10),
+              ],
+              validator: (v) {
+                if (v == null || v.isEmpty) return "Enter contact";
+                if (v.length != 10) return "Must be 10 digits";
+                return null;
+              },
+            ),
+            const SizedBox(height: 20),
 
-              // Email
-              TextFormField(
-                controller: emailController,
-                decoration: buildInput("Email", Icons.email),
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return "Enter email";
-                  }
+            TextFormField(
+              controller: usernameCtrl,
+              decoration: _input("Username", Icons.account_circle),
+              validator: (v) =>
+              v == null || v.isEmpty ? "Enter username" : null,
+            ),
+            const SizedBox(height: 20),
 
-                  final emailRegex = RegExp(
-                      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+            TextFormField(
+              controller: passwordCtrl,
+              decoration: _input("Password", Icons.lock),
+              validator: (v) {
+                if (v == null || v.isEmpty) return "Enter password";
+                if (v.length < 6) return "Min 6 characters";
+                return null;
+              },
+            ),
+            const SizedBox(height: 40),
 
-                  if (!emailRegex.hasMatch(value.trim())) {
-                    return "Enter valid email";
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 20),
-
-              // Contact (Only numbers)
-              TextFormField(
-                controller: contactController,
-                decoration: buildInput("Contact Number", Icons.phone),
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(10),
-                ],
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return "Enter contact number";
-                  }
-                  if (value.length != 10) {
-                    return "Contact must be 10 digits";
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 20),
-
-              // Username
-              TextFormField(
-                controller: usernameController,
-                decoration: buildInput("Username", Icons.account_circle),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return "Enter username";
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 20),
-
-              // Password
-              TextFormField(
-                controller: passwordController,
-                decoration: buildInput("Password", Icons.lock),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return "Enter password";
-                  }
-                  if (value.length < 6) {
-                    return "Password must be at least 6 characters";
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 40),
-
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: isLoading ? null : saveTeacher,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1E3A5F),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                  ),
-                  child: isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                    "ADD TEACHER",
-                    style: GoogleFonts.montserrat(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+            SizedBox(
+              width: double.infinity,
+              height: 55,
+              child: ElevatedButton(
+                onPressed: isLoading ? null : saveTeacher,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1E3A5F),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30)),
                 ),
+                child: isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : Text("ADD TEACHER",
+                    style: GoogleFonts.montserrat(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white)),
               ),
-            ],
-          ),
+            ),
+          ]),
         ),
       ),
     );
   }
 
-  InputDecoration buildInput(String label, IconData icon) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
-    );
-  }
+  InputDecoration _input(String label, IconData icon) => InputDecoration(
+    labelText: label,
+    prefixIcon: Icon(icon),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+  );
 }

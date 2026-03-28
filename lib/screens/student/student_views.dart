@@ -8,11 +8,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class StudentNoticeView extends StatefulWidget {
   final String course;
   final String division;
+  final String collegeId; // ✅
 
   const StudentNoticeView({
     super.key,
     required this.course,
     required this.division,
+    required this.collegeId,
   });
 
   @override
@@ -269,11 +271,13 @@ class _StudentNoticeViewState extends State<StudentNoticeView> {
 class StudentTimetableView extends StatefulWidget {
   final String course;
   final String division;
+  final String collegeId; // ✅
 
   const StudentTimetableView({
     super.key,
     required this.course,
     required this.division,
+    required this.collegeId,
   });
 
   @override
@@ -327,8 +331,9 @@ class _StudentTimetableViewState extends State<StudentTimetableView> {
       body: FutureBuilder<QuerySnapshot>(
         future: FirebaseFirestore.instance
             .collection("timetable")
-            .where("course",   isEqualTo: widget.course)
-            .where("division", isEqualTo: widget.division)
+            .where("course",    isEqualTo: widget.course)
+            .where("division",  isEqualTo: widget.division)
+            .where("collegeId", isEqualTo: widget.collegeId) // ✅
             .get(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -484,10 +489,11 @@ class _StudentTimetableViewState extends State<StudentTimetableView> {
                     final l         = lectures[i];
                     final subject   = l["subjectName"] as String? ?? "";
                     final room      = l["room"]        as String? ?? "TBA";
-                    final startTime = l["startTime"]   as String? ?? "";
-                    final endTime   = l["endTime"]     as String? ?? "";
-                    final lectureNo = (l["lectureNo"] as num?)?.toInt() ?? (i + 1);
-                    final color     = _colorFor(subject);
+                    final startTime   = l["startTime"]   as String? ?? "";
+                    final endTime     = l["endTime"]     as String? ?? "";
+                    final lectureNo   = (l["lectureNo"]  as num?)?.toInt() ?? (i + 1);
+                    final lectureType = l["lectureType"] as String? ?? "LEC";
+                    final color       = _colorFor(subject);
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
@@ -519,8 +525,8 @@ class _StudentTimetableViewState extends State<StudentTimetableView> {
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 18)),
-                                  const Text("LEC",
-                                      style: TextStyle(
+                                  Text(lectureType,
+                                      style: const TextStyle(
                                           color: Colors.white60,
                                           fontSize: 9,
                                           letterSpacing: 1)),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class MarksDetailScreen extends StatelessWidget {
+class MarksDetailScreen extends StatefulWidget {
   final String subject;
   final String examType;
   final String course;
@@ -22,6 +22,73 @@ class MarksDetailScreen extends StatelessWidget {
     required this.records,
   });
 
+  @override
+  State<MarksDetailScreen> createState() => _MarksDetailScreenState();
+}
+
+class _MarksDetailScreenState extends State<MarksDetailScreen> {
+  List<Map<String, dynamic>> _sortedRecords = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAndSortData();
+  }
+
+  Future<void> _fetchAndSortData() async {
+    List<Map<String, dynamic>> tempRecords = [];
+
+    // Fetch student details for all records
+    for (var record in widget.records) {
+      final String studentId = record["studentId"] as String? ?? "";
+      String displayName = studentId;
+      String rollNumber = "";
+
+      if (studentId.isNotEmpty) {
+        try {
+          final doc = await FirebaseFirestore.instance
+              .collection("students")
+              .doc(studentId)
+              .get();
+
+          if (doc.exists) {
+            final data = doc.data() as Map<String, dynamic>;
+            displayName = data["username"] as String? ??
+                data["name"] as String? ??
+                studentId;
+            // Roll number format check
+            rollNumber = data["rollnumber"] as String? ??
+                data["rollNumber"] as String? ??
+                "";
+          }
+        } catch (e) {
+          debugPrint("Error fetching student $studentId: $e");
+        }
+      }
+
+      tempRecords.add({
+        ...record,
+        "displayName": displayName,
+        "rollNumber": rollNumber,
+      });
+    }
+
+    // ✅ Sort by Roll Number
+    tempRecords.sort((a, b) {
+      final String rollA = a["rollNumber"] ?? "";
+      final String rollB = b["rollNumber"] ?? "";
+      return rollA.compareTo(rollB);
+    });
+
+    if (mounted) {
+      setState(() {
+        _sortedRecords = tempRecords;
+        _isLoading = false;
+      });
+    }
+  }
+
   Color _gradeColor(double percent) {
     if (percent >= 75) return Colors.green;
     if (percent >= 50) return Colors.orange;
@@ -38,18 +105,18 @@ class MarksDetailScreen extends StatelessWidget {
   }
 
   String get _average {
-    final values = records
+    final values = widget.records
         .map((d) => double.tryParse(d["marks"] as String? ?? "") ?? 0)
         .toList();
     if (values.isEmpty) return "-";
     final avg = values.reduce((a, b) => a + b) / values.length;
-    return "${avg.toStringAsFixed(1)} / $total";
+    return "${avg.toStringAsFixed(1)} / ${widget.total}";
   }
 
   int get _passCount {
-    return records.where((d) {
+    return widget.records.where((d) {
       final m = double.tryParse(d["marks"] as String? ?? "") ?? 0;
-      final t = double.tryParse(total) ?? 0;
+      final t = double.tryParse(widget.total) ?? 0;
       return t > 0 && (m / t * 100) >= 35;
     }).length;
   }
@@ -61,7 +128,7 @@ class MarksDetailScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E3A5F),
         iconTheme: const IconThemeData(color: Colors.white),
-        title: Text(subject,
+        title: Text(widget.subject,
             style: GoogleFonts.playfairDisplay(
                 color: Colors.white, fontSize: 18)),
         centerTitle: true,
@@ -83,7 +150,7 @@ class MarksDetailScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(subject,
+                Text(widget.subject,
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -93,22 +160,22 @@ class MarksDetailScreen extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 6,
                   children: [
-                    _infoChip(examType, Icons.assignment),
-                    _infoChip("$course - $division", Icons.school),
-                    _infoChip("Out of $total", Icons.score),
-                    _infoChip(date, Icons.calendar_today),
+                    _infoChip(widget.examType, Icons.assignment),
+                    _infoChip("${widget.course} - ${widget.division}", Icons.school),
+                    _infoChip("Out of ${widget.total}", Icons.score),
+                    _infoChip(widget.date, Icons.calendar_today),
                   ],
                 ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    _statBox("Total", "${records.length}", Icons.people, Colors.white),
+                    _statBox("Total", "${widget.records.length}", Icons.people, Colors.white),
                     const SizedBox(width: 10),
                     _statBox("Avg", _average, Icons.bar_chart, Colors.amber),
                     const SizedBox(width: 10),
                     _statBox("Pass", "$_passCount", Icons.check_circle, Colors.greenAccent),
                     const SizedBox(width: 10),
-                    _statBox("Fail", "${records.length - _passCount}", Icons.cancel, Colors.redAccent),
+                    _statBox("Fail", "${widget.records.length - _passCount}", Icons.cancel, Colors.redAccent),
                   ],
                 ),
               ],
@@ -117,53 +184,29 @@ class MarksDetailScreen extends StatelessWidget {
 
           // ── Students List ──
           Expanded(
-            child: ListView.builder(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              itemCount: records.length,
+              itemCount: _sortedRecords.length,
               itemBuilder: (context, index) {
-                final d                = records[index];
-                final String studentId = d["studentId"] as String? ?? "";
-                final String marks     = d["marks"]     as String? ?? "-";
-                final double? m        = double.tryParse(marks);
-                final double? t        = double.tryParse(total);
-                final double percent   = (m != null && t != null && t > 0)
-                    ? (m / t * 100) : 0;
+                final d = _sortedRecords[index];
+                final String marks = d["marks"] as String? ?? "-";
+                final String displayName = d["displayName"] as String? ?? "Unknown";
+                final String rollNumber = d["rollNumber"] as String? ?? "";
 
-                // ✅ HAMESHA students collection se fetch karo
-                // Taaki dono cases mein name + rollnumber sahi aaye
-                return FutureBuilder<DocumentSnapshot>(
-                  future: FirebaseFirestore.instance
-                      .collection("students")
-                      .doc(studentId)
-                      .get(),
-                  builder: (ctx, sSnap) {
-                    String displayName = "Loading...";
-                    String rollNumber  = "";
+                final double? m = double.tryParse(marks);
+                final double? t = double.tryParse(widget.total);
+                final double percent = (m != null && t != null && t > 0)
+                    ? (m / t * 100)
+                    : 0;
 
-                    if (sSnap.connectionState == ConnectionState.waiting) {
-                      displayName = "Loading...";
-                    }
-
-                    if (sSnap.hasData && sSnap.data!.exists) {
-                      final sd = sSnap.data!.data() as Map<String, dynamic>;
-
-                      // ✅ username field se name fetch karo
-                      displayName = sd["username"]   as String? ??
-                          sd["name"]       as String? ??
-                          studentId;
-
-                      // ✅ rollnumber field se ID fetch karo
-                      rollNumber  = sd["rollnumber"] as String? ?? "";
-                    }
-
-                    return _studentCard(
-                      index + 1,
-                      displayName,
-                      rollNumber,
-                      marks,
-                      percent,
-                    );
-                  },
+                return _studentCard(
+                  index + 1,
+                  displayName,
+                  rollNumber,
+                  marks,
+                  percent,
                 );
               },
             ),
@@ -238,7 +281,6 @@ class MarksDetailScreen extends StatelessWidget {
                       fontWeight: FontWeight.w600, fontSize: 14),
                 ),
                 const SizedBox(height: 2),
-                // ✅ Roll: 25MCA148 format
                 if (rollNumber.isNotEmpty)
                   Text(
                     "Roll: $rollNumber",
@@ -261,7 +303,7 @@ class MarksDetailScreen extends StatelessWidget {
               border: Border.all(color: color.withOpacity(0.3)),
             ),
             child: Text(
-              "$marks / $total",
+              "$marks / ${widget.total}",
               style: TextStyle(
                   color: color,
                   fontWeight: FontWeight.bold,

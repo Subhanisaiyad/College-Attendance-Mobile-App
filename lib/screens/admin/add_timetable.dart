@@ -3,70 +3,66 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AddTimetable extends StatefulWidget {
-  const AddTimetable({super.key});
+  final String collegeId; // ✅
+  const AddTimetable({super.key, required this.collegeId});
 
   @override
   State<AddTimetable> createState() => _AddTimetableState();
 }
 
 class _AddTimetableState extends State<AddTimetable> {
+  final courseCtrl    = TextEditingController();
+  final divisionCtrl  = TextEditingController();
+  final roomCtrl      = TextEditingController();
+  final startCtrl     = TextEditingController();
+  final endCtrl       = TextEditingController();
 
-  final courseController = TextEditingController();
-  final divisionController = TextEditingController();
-  final roomController = TextEditingController();
-  final startTimeController = TextEditingController();
-  final endTimeController = TextEditingController();
+  String? selectedDay, selectedLecture, selectedSubjectId;
+  String? selectedSubjectName, selectedTeacherId, selectedTeacherName;
+  String  selectedType = "LEC";
+  bool    isLoading    = false;
 
-  String? selectedDay;
-  String? selectedLecture;
-  String? selectedSubjectId;
-  String? selectedSubjectName;
-  String? selectedTeacherId;
-  String? selectedTeacherName;
+  static const _types = [
+    {"value": "LEC", "label": "LEC — Lecture"},
+    {"value": "LAB", "label": "LAB — Laboratory"},
+  ];
 
-  bool isLoading = false;
+  Color _typeColor(String t) =>
+      t == "LAB" ? Colors.green.shade700 : const Color(0xFF1E3A5F);
 
-  Future<void> saveTimetable() async {
-
-    if (courseController.text.isEmpty ||
-        divisionController.text.isEmpty ||
-        roomController.text.isEmpty ||
-        selectedDay == null ||
-        selectedLecture == null ||
-        selectedSubjectId == null ||
-        selectedTeacherId == null ||
-        startTimeController.text.isEmpty ||
-        endTimeController.text.isEmpty) {
-
+  Future<void> save() async {
+    if (courseCtrl.text.isEmpty || divisionCtrl.text.isEmpty ||
+        roomCtrl.text.isEmpty || selectedDay == null ||
+        selectedLecture == null || selectedSubjectId == null ||
+        selectedTeacherId == null || startCtrl.text.isEmpty ||
+        endCtrl.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all fields")),
-      );
+          const SnackBar(content: Text("Please fill all fields")));
       return;
     }
-
     setState(() => isLoading = true);
-
     await FirebaseFirestore.instance.collection("timetable").add({
-      "course": courseController.text.trim(),
-      "division": divisionController.text.trim(),
-      "room": roomController.text.trim(),
-      "day": selectedDay,
-      "lectureNo": int.parse(selectedLecture!),
-      "subjectId": selectedSubjectId,
+      "course":      courseCtrl.text.trim(),
+      "division":    divisionCtrl.text.trim(),
+      "room":        roomCtrl.text.trim(),
+      "day":         selectedDay,
+      "lectureNo":   int.parse(selectedLecture!),
+      "lectureType": selectedType,
+      "subjectId":   selectedSubjectId,
       "subjectName": selectedSubjectName,
-      "teacherId": selectedTeacherId,
+      "teacherId":   selectedTeacherId,
       "teacherName": selectedTeacherName,
-      "startTime": startTimeController.text.trim(),
-      "endTime": endTimeController.text.trim(),
-      "createdAt": Timestamp.now(),
+      "startTime":   startCtrl.text.trim(),
+      "endTime":     endCtrl.text.trim(),
+      "collegeId":   widget.collegeId, // ✅
+      "createdAt":   Timestamp.now(),
     });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Timetable Saved")),
-    );
-
-    Navigator.pop(context);
-
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ Timetable Saved!"),
+              backgroundColor: Colors.green));
+      Navigator.pop(context);
+    }
     setState(() => isLoading = false);
   }
 
@@ -74,189 +70,118 @@ class _AddTimetableState extends State<AddTimetable> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          "Add Timetable",
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text("Add Timetable", style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF1E3A5F),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
-        child: ListView(
-          children: [
+        child: ListView(children: [
+          TextField(controller: courseCtrl,   decoration: const InputDecoration(labelText: "Course")),
+          const SizedBox(height: 15),
+          TextField(controller: divisionCtrl, decoration: const InputDecoration(labelText: "Division (A/B/C)")),
+          const SizedBox(height: 15),
+          TextField(controller: roomCtrl,     decoration: const InputDecoration(labelText: "Class / Lab")),
+          const SizedBox(height: 15),
 
-            TextField(
-              controller: courseController,
-              decoration: const InputDecoration(
-                labelText: "Course ",
-              ),
+          DropdownButtonFormField<String>(
+            decoration: const InputDecoration(labelText: "Day"),
+            items: ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
+                .map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+            onChanged: (v) => setState(() => selectedDay = v),
+          ),
+          const SizedBox(height: 15),
+
+          DropdownButtonFormField<String>(
+            decoration: const InputDecoration(labelText: "Lecture No"),
+            items: List.generate(6, (i) => DropdownMenuItem(
+                value: "${i+1}", child: Text("Lecture ${i+1}"))),
+            onChanged: (v) => setState(() => selectedLecture = v),
+          ),
+          const SizedBox(height: 15),
+
+          DropdownButtonFormField<String>(
+            value: selectedType,
+            decoration: const InputDecoration(
+              labelText: "Lecture Type",
+              prefixIcon: Icon(Icons.category_outlined, color: Color(0xFF1E3A5F)),
             ),
-
-            const SizedBox(height: 15),
-
-            TextField(
-              controller: divisionController,
-              decoration: const InputDecoration(
-                labelText: "Division (A/B/C)",
-              ),
-            ),
-
-            const SizedBox(height: 15),
-
-            TextField(
-              controller: roomController,
-              decoration: const InputDecoration(
-                labelText: "Class / Lab (Ex: Class-10 or Lab-01)",
-              ),
-            ),
-
-            const SizedBox(height: 15),
-
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(labelText: "Day"),
-              items: const [
-                DropdownMenuItem(value: "Monday", child: Text("Monday")),
-                DropdownMenuItem(value: "Tuesday", child: Text("Tuesday")),
-                DropdownMenuItem(value: "Wednesday", child: Text("Wednesday")),
-                DropdownMenuItem(value: "Thursday", child: Text("Thursday")),
-                DropdownMenuItem(value: "Friday", child: Text("Friday")),
-                DropdownMenuItem(value: "Saturday", child: Text("Saturday")),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  selectedDay = value;
-                });
-              },
-            ),
-
-            const SizedBox(height: 15),
-
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(labelText: "Lecture No"),
-              items: List.generate(
-                6,
-                    (index) => DropdownMenuItem(
-                  value: "${index + 1}",
-                  child: Text("Lecture ${index + 1}"),
+            items: _types.map((t) => DropdownMenuItem(
+              value: t["value"],
+              child: Row(children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _typeColor(t["value"]!).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(t["value"]!,
+                      style: TextStyle(color: _typeColor(t["value"]!),
+                          fontWeight: FontWeight.bold, fontSize: 12)),
                 ),
-              ),
-              onChanged: (value) {
-                setState(() {
-                  selectedLecture = value;
-                });
-              },
+                const SizedBox(width: 10),
+                Text(t["label"]!.split("—").last.trim()),
+              ]),
+            )).toList(),
+            onChanged: (v) => setState(() => selectedType = v!),
+          ),
+          const SizedBox(height: 15),
+
+          // ✅ Subject filtered by collegeId
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection("subjects")
+                .where("collegeId", isEqualTo: widget.collegeId).snapshots(),
+            builder: (context, snap) {
+              if (!snap.hasData) return const CircularProgressIndicator();
+              return DropdownButtonFormField<String>(
+                decoration: const InputDecoration(labelText: "Subject"),
+                items: snap.data!.docs.map((doc) => DropdownMenuItem<String>(
+                    value: doc.id, child: Text((doc.data() as Map)["subjectName"] ?? ""))).toList(),
+                onChanged: (v) {
+                  final sub = snap.data!.docs.firstWhere((d) => d.id == v);
+                  setState(() { selectedSubjectId = v; selectedSubjectName = (sub.data() as Map)["subjectName"]; });
+                },
+              );
+            },
+          ),
+          const SizedBox(height: 15),
+
+          // ✅ Teacher filtered by collegeId
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection("teachers")
+                .where("collegeId", isEqualTo: widget.collegeId).snapshots(),
+            builder: (context, snap) {
+              if (!snap.hasData) return const CircularProgressIndicator();
+              return DropdownButtonFormField<String>(
+                decoration: const InputDecoration(labelText: "Teacher Name"),
+                items: snap.data!.docs.map((doc) => DropdownMenuItem<String>(
+                    value: doc.id, child: Text((doc.data() as Map)["name"] ?? ""))).toList(),
+                onChanged: (v) {
+                  final t = snap.data!.docs.firstWhere((d) => d.id == v);
+                  setState(() { selectedTeacherId = v; selectedTeacherName = (t.data() as Map)["name"]; });
+                },
+              );
+            },
+          ),
+          const SizedBox(height: 15),
+
+          TextField(controller: startCtrl, decoration: const InputDecoration(labelText: "Start Time (09:00 AM)")),
+          const SizedBox(height: 15),
+          TextField(controller: endCtrl,   decoration: const InputDecoration(labelText: "End Time (10:00 AM)")),
+          const SizedBox(height: 30),
+
+          SizedBox(height: 50,
+            child: ElevatedButton(
+              onPressed: isLoading ? null : save,
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A5F),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              child: isLoading
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : Text("ADD TIMETABLE", style: GoogleFonts.montserrat(
+                  fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
             ),
-
-            const SizedBox(height: 15),
-
-            // SUBJECT DROPDOWN
-            StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection("subjects")
-                  .snapshots(),
-              builder: (context, snapshot) {
-
-                if (!snapshot.hasData) {
-                  return const CircularProgressIndicator();
-                }
-
-                return DropdownButtonFormField<String>(
-                  decoration:
-                  const InputDecoration(labelText: "Subject"),
-                  items: snapshot.data!.docs.map((doc) {
-                    return DropdownMenuItem<String>(
-                      value: doc.id,
-                      child: Text(doc["subjectName"]),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    var subject = snapshot.data!.docs
-                        .firstWhere((doc) => doc.id == value);
-
-                    setState(() {
-                      selectedSubjectId = value;
-                      selectedSubjectName = subject["subjectName"];
-                    });
-                  },
-                );
-              },
-            ),
-
-            const SizedBox(height: 15),
-
-            // TEACHER DROPDOWN
-            StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection("teachers")
-                  .snapshots(),
-              builder: (context, snapshot) {
-
-                if (!snapshot.hasData) {
-                  return const CircularProgressIndicator();
-                }
-
-                return DropdownButtonFormField<String>(
-                  decoration:
-                  const InputDecoration(labelText: "Teacher Name"),
-                  items: snapshot.data!.docs.map((doc) {
-                    return DropdownMenuItem<String>(
-                      value: doc.id,
-                      child: Text(doc["name"]),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    var teacher = snapshot.data!.docs
-                        .firstWhere((doc) => doc.id == value);
-
-                    setState(() {
-                      selectedTeacherId = value;
-                      selectedTeacherName = teacher["name"];
-                    });
-                  },
-                );
-              },
-            ),
-
-            const SizedBox(height: 15),
-
-            TextField(
-              controller: startTimeController,
-              decoration: const InputDecoration(
-                labelText: "Start Time (09:00 AM)",
-              ),
-            ),
-
-            const SizedBox(height: 15),
-
-            TextField(
-              controller: endTimeController,
-              decoration: const InputDecoration(
-                labelText: "End Time (10:00 AM)",
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            SizedBox(
-              height: 50,
-              child: ElevatedButton(
-                onPressed: isLoading ? null : saveTimetable,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1E3A5F),
-                ),
-                child: isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : Text("ADD TIMETABLE",
-                style: GoogleFonts.montserrat(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white
-                ),),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ]),
       ),
     );
   }
