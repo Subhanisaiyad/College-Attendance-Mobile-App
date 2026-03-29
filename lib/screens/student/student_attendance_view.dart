@@ -4,8 +4,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class StudentAttendanceView extends StatelessWidget {
   final String studentId;
+  final String collegeId; // ✅ Added
+  final String semester;  // ✅ Added
 
-  const StudentAttendanceView({super.key, required this.studentId});
+  const StudentAttendanceView({
+    super.key,
+    required this.studentId,
+    required this.collegeId,
+    required this.semester,
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -8,6 +8,7 @@ class UploadMarks extends StatefulWidget {
   final String subject;
   final String teacherId;
   final String collegeId; // ✅
+  final String semester;
 
   const UploadMarks({
     super.key,
@@ -16,6 +17,7 @@ class UploadMarks extends StatefulWidget {
     required this.subject,
     required this.teacherId,
     required this.collegeId,
+    required this.semester,
   });
 
   @override
@@ -97,6 +99,7 @@ class _UploadMarksState extends State<UploadMarks> {
           "teacherId":   widget.teacherId,
           "collegeId":   widget.collegeId, // ✅
           "uploadedAt":  DateTime.now().toString(),
+          "semester":    widget.semester,
         });
       }
       if (mounted) {
@@ -219,18 +222,20 @@ class _UploadMarksState extends State<UploadMarks> {
       const SizedBox(height: 8),
       Expanded(
         child: StreamBuilder<QuerySnapshot>(
-          // ✅ Filter students by collegeId
+          // ✅ Filter students by collegeId, semester, and Active status
           stream: FirebaseFirestore.instance
               .collection("students")
               .where("course",    isEqualTo: _confirmedCourse)
               .where("division",  isEqualTo: _confirmedDivision)
               .where("collegeId", isEqualTo: widget.collegeId)
+              .where("semester",  isEqualTo: widget.semester) // ✅ Semester filter
+              .where("status",    isEqualTo: "Active")        // ✅ Status filter
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting)
               return const Center(child: CircularProgressIndicator());
             if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
-              return Center(child: Text("No Students Found\n$_confirmedCourse - $_confirmedDivision",
+              return Center(child: Text("No Active Students Found\n$_confirmedCourse - $_confirmedDivision",
                   textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade500, fontSize: 15)));
 
             final students = snapshot.data!.docs.toList()

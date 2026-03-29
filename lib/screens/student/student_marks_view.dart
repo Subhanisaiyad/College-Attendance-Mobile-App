@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class StudentMarksView extends StatefulWidget {
   final String studentId;
-  const StudentMarksView({super.key, required this.studentId});
+  final String collegeId;
+  final String semester; // ✅
+
+  const StudentMarksView({
+    super.key,
+    required this.studentId,
+    required this.collegeId,
+    required this.semester,
+  });
 
   @override
   State<StudentMarksView> createState() => _StudentMarksViewState();
@@ -29,6 +37,7 @@ class _StudentMarksViewState extends State<StudentMarksView> {
         future: FirebaseFirestore.instance
             .collection("marks")
             .where("studentId", isEqualTo: widget.studentId)
+            .where("semester",  isEqualTo: widget.semester)
             .get(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {

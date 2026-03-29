@@ -8,13 +8,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class StudentNoticeView extends StatefulWidget {
   final String course;
   final String division;
-  final String collegeId; // ✅
+  final String collegeId;
+  final String semester; // ✅
 
   const StudentNoticeView({
     super.key,
     required this.course,
     required this.division,
     required this.collegeId,
+    required this.semester,
   });
 
   @override
@@ -271,13 +273,15 @@ class _StudentNoticeViewState extends State<StudentNoticeView> {
 class StudentTimetableView extends StatefulWidget {
   final String course;
   final String division;
-  final String collegeId; // ✅
+  final String collegeId;
+  final String semester; // ✅
 
   const StudentTimetableView({
     super.key,
     required this.course,
     required this.division,
     required this.collegeId,
+    required this.semester,
   });
 
   @override
@@ -333,7 +337,8 @@ class _StudentTimetableViewState extends State<StudentTimetableView> {
             .collection("timetable")
             .where("course",    isEqualTo: widget.course)
             .where("division",  isEqualTo: widget.division)
-            .where("collegeId", isEqualTo: widget.collegeId) // ✅
+            .where("collegeId", isEqualTo: widget.collegeId)
+            .where("semester",  isEqualTo: widget.semester) // ✅ Filter by Semester
             .get(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -370,7 +375,7 @@ class _StudentTimetableViewState extends State<StudentTimetableView> {
                   children: [
                     const Icon(Icons.school, color: Colors.white70, size: 16),
                     const SizedBox(width: 8),
-                    Text("${widget.course} - Division ${widget.division}",
+                    Text("${widget.course} - Div ${widget.division} (${widget.semester})",
                         style: const TextStyle(
                             color: Colors.white70, fontSize: 13)),
                     const Spacer(),

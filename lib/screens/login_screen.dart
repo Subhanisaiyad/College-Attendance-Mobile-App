@@ -40,10 +40,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (adminQuery.docs.isNotEmpty) {
         final ad        = adminQuery.docs.first.data();
-        final collegeId = ad["collegeId"] as String? ?? ""; // ✅
+        final collegeId = ad["collegeId"] as String? ?? "";
         if (!mounted) return;
         Navigator.pushReplacement(context, MaterialPageRoute(
-          builder: (_) => AdminDashboard(collegeId: collegeId),
+          builder: (_) => AdminDashboard(collegeId: collegeId, adminDocId: adminQuery.docs.first.id),
         ));
         setState(() => isLoading = false);
         return;
@@ -59,13 +59,13 @@ class _LoginScreenState extends State<LoginScreen> {
       if (teacherQuery.docs.isNotEmpty) {
         final teacher   = teacherQuery.docs.first;
         final td        = teacher.data() as Map<String, dynamic>;
-        final collegeId = td["collegeId"] as String? ?? ""; // ✅
+        final collegeId = td["collegeId"] as String? ?? "";
         if (!mounted) return;
         Navigator.pushReplacement(context, MaterialPageRoute(
           builder: (_) => TeacherDashboard(
             teacherId:   teacher.id,
             teacherName: td["name"] as String? ?? "",
-            collegeId:   collegeId, // ✅
+            collegeId:   collegeId,
           ),
         ));
         setState(() => isLoading = false);
@@ -82,7 +82,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (studentQuery.docs.isNotEmpty) {
         final student   = studentQuery.docs.first;
         final sd        = student.data() as Map<String, dynamic>;
-        final collegeId = sd["collegeId"] as String? ?? ""; // ✅
+        final collegeId = sd["collegeId"] as String? ?? "";
+        final semester  = sd["semester"]  as String? ?? ""; // ✅ Fetch Semester
+
         if (!mounted) return;
         Navigator.pushReplacement(context, MaterialPageRoute(
           builder: (_) => StudentDashboard(
@@ -90,7 +92,8 @@ class _LoginScreenState extends State<LoginScreen> {
             studentName: sd["name"]     as String? ?? "Student",
             course:      sd["course"]   as String? ?? "",
             division:    sd["division"] as String? ?? "",
-            collegeId:   collegeId, // ✅
+            semester:    semester,      // ✅ Pass Semester to Dashboard
+            collegeId:   collegeId,
           ),
         ));
         setState(() => isLoading = false);
@@ -114,15 +117,12 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // Background
           Positioned.fill(
             child: Image.asset("assets/images/login.png", fit: BoxFit.cover),
           ),
-          // Overlay
           Positioned.fill(
             child: Container(color: Colors.black.withValues(alpha: 0.25)),
           ),
-          // Title
           Positioned(
             top: 120, left: 0, right: 0,
             child: Column(children: [
@@ -137,12 +137,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: const Color(0xFF1E2D4F))),
             ]),
           ),
-          // Login Card
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
               width: 350,
-              margin: const EdgeInsets.only(bottom: 80),
+              margin: const EdgeInsets.only(bottom: 60),
               padding: const EdgeInsets.all(25),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.95),

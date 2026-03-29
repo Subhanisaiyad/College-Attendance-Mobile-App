@@ -23,7 +23,7 @@ class _BulkUploadStudentsState extends State<BulkUploadStudents> {
   bool    _uploadDone  = false;
 
   static const List<String> _requiredFields = [
-    "name", "rollnumber", "course", "division", "username", "password"
+    "name", "rollnumber", "course", "division", "semester", "username", "password"
   ];
 
   Future<void> _pickFile() async {
@@ -102,23 +102,35 @@ class _BulkUploadStudentsState extends State<BulkUploadStudents> {
     int success = 0, skipped = 0;
     for (final student in _parsedStudents) {
       try {
-        // Check duplicate within same college
         final existing = await FirebaseFirestore.instance
             .collection("students")
             .where("username",  isEqualTo: student["username"])
-            .where("collegeId", isEqualTo: widget.collegeId) // ✅
+            .where("collegeId", isEqualTo: widget.collegeId)
             .limit(1).get();
+
         if (existing.docs.isNotEmpty) {
           skipped++;
         } else {
+          // ✅ SMART FORMATTING LOGIC: "2" -> "Sem 2"
+          String rawSem = student["semester"]?.trim() ?? "";
+          String formattedSem = rawSem;
+
+          // Number nikaal kar "Sem X" format me set karo
+          String numbersOnly = rawSem.replaceAll(RegExp(r'[^0-9]'), '');
+          if (numbersOnly.isNotEmpty) {
+            formattedSem = "Sem ${int.parse(numbersOnly)}";
+          }
+
           await FirebaseFirestore.instance.collection("students").add({
             "name":        student["name"]       ?? "",
             "rollNumber":  student["rollnumber"] ?? "",
             "course":      student["course"]     ?? "",
             "division":    student["division"]   ?? "",
+            "semester":    formattedSem,                // ✅ Automatically formatted string save hogi
+            "status":      "Active",
             "username":    student["username"]   ?? "",
             "password":    student["password"]   ?? "",
-            "collegeId":   widget.collegeId,  // ✅
+            "collegeId":   widget.collegeId,
             "createdAt":   DateTime.now().toString(),
           });
           success++;
@@ -149,7 +161,6 @@ class _BulkUploadStudentsState extends State<BulkUploadStudents> {
             style: GoogleFonts.playfairDisplay(color: Colors.white, fontSize: 20)),
         centerTitle: true,
         actions: [
-          // ✅ Refresh Button Added Here
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             tooltip: "Refresh Screen",
@@ -172,7 +183,6 @@ class _BulkUploadStudentsState extends State<BulkUploadStudents> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Format guide
           Container(
             width: double.infinity, padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(color: const Color(0xFF1E3A5F), borderRadius: BorderRadius.circular(16)),
@@ -186,7 +196,7 @@ class _BulkUploadStudentsState extends State<BulkUploadStudents> {
               Text("Supported: .xlsx  .xls  .csv", style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
               const SizedBox(height: 8),
               Wrap(spacing: 6, runSpacing: 4,
-                  children: ["name","rollNumber","course","division","username","password"].map((f) =>
+                  children: _requiredFields.map((f) =>
                       Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
                         child: Text(f, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
@@ -195,7 +205,6 @@ class _BulkUploadStudentsState extends State<BulkUploadStudents> {
           ),
           const SizedBox(height: 16),
 
-          // Pick file
           GestureDetector(
             onTap: _pickFile,
             child: Container(
@@ -218,7 +227,6 @@ class _BulkUploadStudentsState extends State<BulkUploadStudents> {
 
           if (_isParsing) const Center(child: CircularProgressIndicator()),
 
-          // Preview
           if (_parsedStudents.isNotEmpty && !_isParsing) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -247,7 +255,6 @@ class _BulkUploadStudentsState extends State<BulkUploadStudents> {
             const SizedBox(height: 16),
           ],
 
-          // Progress
           if (_isUploading) ...[
             Container(
               padding: const EdgeInsets.all(20),
@@ -267,7 +274,6 @@ class _BulkUploadStudentsState extends State<BulkUploadStudents> {
             const SizedBox(height: 16),
           ],
 
-          // Upload button
           if (_parsedStudents.isNotEmpty && !_isUploading && !_uploadDone)
             SizedBox(
               width: double.infinity, height: 56,
@@ -281,7 +287,6 @@ class _BulkUploadStudentsState extends State<BulkUploadStudents> {
               ),
             ),
 
-          // Done
           if (_uploadDone)
             Container(
               width: double.infinity, padding: const EdgeInsets.all(24),

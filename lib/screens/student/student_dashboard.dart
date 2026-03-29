@@ -12,7 +12,8 @@ class StudentDashboard extends StatefulWidget {
   final String studentName;
   final String course;
   final String division;
-  final String collegeId; // ✅
+  final String collegeId;
+  final String semester; // ✅ Added semester
 
   const StudentDashboard({
     super.key,
@@ -21,6 +22,7 @@ class StudentDashboard extends StatefulWidget {
     required this.course,
     required this.division,
     required this.collegeId,
+    required this.semester, // ✅
   });
 
   @override
@@ -40,6 +42,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
       final snap = await FirebaseFirestore.instance
           .collection("attendance")
           .where("studentId", isEqualTo: widget.studentId)
+          .where("semester",  isEqualTo: widget.semester) // ✅ Filter stats by current sem!
           .get();
 
       if (snap.docs.isEmpty) { setState(() => _statsLoaded = true); return; }
@@ -87,7 +90,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
               Text(widget.studentName,
                   style: GoogleFonts.playfairDisplay(fontSize: 22, color: Colors.white)),
               const SizedBox(height: 6),
-              Text("${widget.course}  ·  Div ${widget.division}",
+              Text("${widget.course}  ·  Div ${widget.division}\n${widget.semester}", // ✅ Display Semester
+                  textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13)),
               const SizedBox(height: 20),
               Divider(color: Colors.white.withValues(alpha: 0.15)),
@@ -96,24 +100,24 @@ class _StudentDashboardState extends State<StudentDashboard> {
               _dItem(context, Icons.bar_chart_rounded, "My Attendance", () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => StudentAttendanceView(studentId: widget.studentId)));
+                    builder: (_) => StudentAttendanceView(studentId: widget.studentId, collegeId: widget.collegeId, semester: widget.semester)));
               }),
               _dItem(context, Icons.score_rounded, "My Marks", () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => StudentMarksView(studentId: widget.studentId)));
+                    builder: (_) => StudentMarksView(studentId: widget.studentId, collegeId: widget.collegeId, semester: widget.semester)));
               }),
               _dItem(context, Icons.campaign_rounded, "Notice Board", () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(
                     builder: (_) => StudentNoticeView(
-                        course: widget.course, division: widget.division, collegeId: widget.collegeId)));
+                        course: widget.course, division: widget.division, collegeId: widget.collegeId, semester: widget.semester)));
               }),
               _dItem(context, Icons.calendar_month_rounded, "My Timetable", () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(
                     builder: (_) => StudentTimetableView(
-                        course: widget.course, division: widget.division, collegeId: widget.collegeId)));
+                        course: widget.course, division: widget.division, collegeId: widget.collegeId, semester: widget.semester)));
               }),
             ]))),
             const Divider(color: Colors.white24, height: 1),
@@ -160,7 +164,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                   const SizedBox(width: 12),
                   _statCard("$_totalSubjects", "Subjects", Icons.book_outlined, Colors.lightBlueAccent),
                   const SizedBox(width: 12),
-                  _statCard(widget.course, widget.division, Icons.school_outlined, Colors.amberAccent),
+                  _statCard(widget.course, widget.semester, Icons.school_outlined, Colors.amberAccent), // ✅
                 ])
               else
                 const CircularProgressIndicator(color: Colors.white),
@@ -185,21 +189,21 @@ class _StudentDashboardState extends State<StudentDashboard> {
                   _actionCard(icon: Icons.bar_chart_rounded, label: "My Attendance",
                       color: const Color(0xFF1565C0),
                       onTap: () => Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => StudentAttendanceView(studentId: widget.studentId)))),
+                          builder: (_) => StudentAttendanceView(studentId: widget.studentId, collegeId: widget.collegeId, semester: widget.semester)))),
                   _actionCard(icon: Icons.score_rounded, label: "My Marks",
                       color: const Color(0xFF2E7D32),
                       onTap: () => Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => StudentMarksView(studentId: widget.studentId)))),
+                          builder: (_) => StudentMarksView(studentId: widget.studentId, collegeId: widget.collegeId, semester: widget.semester)))),
                   _actionCard(icon: Icons.campaign_rounded, label: "Notice Board",
                       color: const Color(0xFF6A1B9A),
                       onTap: () => Navigator.push(context, MaterialPageRoute(
                           builder: (_) => StudentNoticeView(
-                              course: widget.course, division: widget.division, collegeId: widget.collegeId)))),
+                              course: widget.course, division: widget.division, collegeId: widget.collegeId, semester: widget.semester)))),
                   _actionCard(icon: Icons.calendar_month_rounded, label: "My Timetable",
                       color: const Color(0xFFBF360C),
                       onTap: () => Navigator.push(context, MaterialPageRoute(
                           builder: (_) => StudentTimetableView(
-                              course: widget.course, division: widget.division, collegeId: widget.collegeId)))),
+                              course: widget.course, division: widget.division, collegeId: widget.collegeId, semester: widget.semester)))),
                 ],
               ),
             ]),
@@ -255,11 +259,12 @@ class _StudentDashboardState extends State<StudentDashboard> {
     final now       = DateTime.now();
 
     return FutureBuilder<QuerySnapshot>(
-      // ✅ Filter by collegeId
+      // ✅ Filter timetable by semester
       future: FirebaseFirestore.instance
           .collection("timetable")
           .where("course",    isEqualTo: widget.course)
           .where("division",  isEqualTo: widget.division)
+          .where("semester",  isEqualTo: widget.semester) // ✅ Magic!
           .where("day",       isEqualTo: todayName)
           .where("collegeId", isEqualTo: widget.collegeId)
           .get(),
@@ -305,6 +310,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
           stream: FirebaseFirestore.instance
               .collection("attendance")
               .where("studentId", isEqualTo: widget.studentId)
+              .where("semester",  isEqualTo: widget.semester) // ✅ Filter attendance by sem
               .snapshots(),
           builder: (context, attSnap) {
             final Map<String, String> attMap = {};
@@ -315,9 +321,11 @@ class _StudentDashboardState extends State<StudentDashboard> {
                 if (date is Timestamp) {
                   final dt = date.toDate();
                   if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
-                    final subject = d["subject"]    as String? ?? "";
-                    final lNo     = (d["lectureNo"] as num?)?.toInt() ?? 1;
-                    attMap["${subject}__$lNo"] = d["status"] as String? ?? "absent";
+                    final subject     = d["subject"]     as String? ?? "";
+                    final lectureType = d["lectureType"] as String? ?? "LEC";
+                    final lNo         = (d["lectureNo"] as num?)?.toInt() ?? 1;
+                    // ✅ Map key now uses subject, type AND lectureNo to be unique
+                    attMap["${subject}__${lectureType}__$lNo"] = d["status"] as String? ?? "absent";
                   }
                 }
               }
@@ -325,10 +333,12 @@ class _StudentDashboardState extends State<StudentDashboard> {
 
             int presentCount = 0, absentCount = 0, pendingCount = 0;
             for (var lec in lectures) {
-              final d       = lec.data() as Map<String, dynamic>;
-              final subject = d["subjectName"] as String? ?? "";
-              final lNo     = (d["lectureNo"]  as num?)?.toInt() ?? 1;
-              final status  = attMap["${subject}__$lNo"];
+              final d           = lec.data() as Map<String, dynamic>;
+              final subject     = d["subjectName"] as String? ?? "";
+              final lectureType = d["lectureType"] as String? ?? "LEC";
+              final lNo         = (d["lectureNo"]  as num?)?.toInt() ?? 1;
+
+              final status  = attMap["${subject}__${lectureType}__$lNo"];
               if (status == "present") presentCount++;
               else if (status == "absent") absentCount++;
               else pendingCount++;
@@ -368,8 +378,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
                   final startTime   = d["startTime"]   as String? ?? "";
                   final endTime     = d["endTime"]     as String? ?? "";
                   final lNo         = (d["lectureNo"]  as num?)?.toInt() ?? (i + 1);
-                  final lectureType = d["lectureType"] as String? ?? "LEC"; // ✅ Fetching LAB/LEC dynamically from database
-                  final status      = attMap["${subject}__$lNo"];
+                  final lectureType = d["lectureType"] as String? ?? "LEC";
+                  final status      = attMap["${subject}__${lectureType}__$lNo"];
                   final cfg         = _statusCfg(status);
 
                   return Container(
@@ -395,8 +405,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
                           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                             Text("$lNo", style: TextStyle(fontSize: 22,
                                 fontWeight: FontWeight.w900, color: cfg["color"] as Color)),
-
-                            // ✅ Dynamic Lecture Type (LEC or LAB)
                             Text(lectureType, style: TextStyle(fontSize: 8, letterSpacing: 1.5,
                                 fontWeight: FontWeight.w700,
                                 color: (cfg["color"] as Color).withValues(alpha: 0.6))),

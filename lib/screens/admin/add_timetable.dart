@@ -18,6 +18,7 @@ class _AddTimetableState extends State<AddTimetable> {
   final endCtrl       = TextEditingController();
 
   String? selectedDay, selectedLecture, selectedSubjectId;
+  String? selectedSemester; // ✅ Added semester variable
   String? selectedSubjectName, selectedTeacherId, selectedTeacherName;
   String  selectedType = "LEC";
   bool    isLoading    = false;
@@ -34,6 +35,7 @@ class _AddTimetableState extends State<AddTimetable> {
     if (courseCtrl.text.isEmpty || divisionCtrl.text.isEmpty ||
         roomCtrl.text.isEmpty || selectedDay == null ||
         selectedLecture == null || selectedSubjectId == null ||
+        selectedSemester == null || // ✅ Validation for semester
         selectedTeacherId == null || startCtrl.text.isEmpty ||
         endCtrl.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -44,6 +46,7 @@ class _AddTimetableState extends State<AddTimetable> {
     await FirebaseFirestore.instance.collection("timetable").add({
       "course":      courseCtrl.text.trim(),
       "division":    divisionCtrl.text.trim(),
+      "semester":    selectedSemester, // ✅ Saved semester to database
       "room":        roomCtrl.text.trim(),
       "day":         selectedDay,
       "lectureNo":   int.parse(selectedLecture!),
@@ -79,6 +82,16 @@ class _AddTimetableState extends State<AddTimetable> {
         child: ListView(children: [
           TextField(controller: courseCtrl,   decoration: const InputDecoration(labelText: "Course")),
           const SizedBox(height: 15),
+
+          // ✅ Added Dropdown for Semester
+          DropdownButtonFormField<String>(
+            decoration: const InputDecoration(labelText: "Semester"),
+            items: ["Sem 1", "Sem 2", "Sem 3", "Sem 4", "Sem 5", "Sem 6", "Sem 7", "Sem 8"]
+                .map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+            onChanged: (v) => setState(() => selectedSemester = v),
+          ),
+          const SizedBox(height: 15),
+
           TextField(controller: divisionCtrl, decoration: const InputDecoration(labelText: "Division (A/B/C)")),
           const SizedBox(height: 15),
           TextField(controller: roomCtrl,     decoration: const InputDecoration(labelText: "Class / Lab")),
@@ -127,7 +140,6 @@ class _AddTimetableState extends State<AddTimetable> {
           ),
           const SizedBox(height: 15),
 
-          // ✅ Subject filtered by collegeId
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance.collection("subjects")
                 .where("collegeId", isEqualTo: widget.collegeId).snapshots(),
@@ -146,7 +158,6 @@ class _AddTimetableState extends State<AddTimetable> {
           ),
           const SizedBox(height: 15),
 
-          // ✅ Teacher filtered by collegeId
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance.collection("teachers")
                 .where("collegeId", isEqualTo: widget.collegeId).snapshots(),

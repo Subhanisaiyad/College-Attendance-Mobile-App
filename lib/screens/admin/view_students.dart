@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ViewStudents extends StatefulWidget {
-  final String collegeId; // ✅
+  final String collegeId;
   const ViewStudents({super.key, required this.collegeId});
 
   @override
@@ -14,8 +14,11 @@ class _ViewStudentsState extends State<ViewStudents> {
   String _search         = "";
   String _filterCourse   = "All";
   String _filterDivision = "All";
+  String _filterSemester = "All";
   bool   _selectMode     = false;
   Set<String> _selected  = {};
+
+  String _viewMode       = "Active";
 
   static const _staticCourses = ["All","BCA","MCA","MSIT","BSIT"];
 
@@ -70,6 +73,44 @@ class _ViewStudentsState extends State<ViewStudents> {
     setState(() { _selected.clear(); _selectMode = false; });
   }
 
+  Future<void> _bulkChangeStatus(String newStatus) async {
+    final count = _selected.length;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          Icon(newStatus == "Alumni" ? Icons.school : Icons.restore,
+              color: newStatus == "Alumni" ? Colors.green : Colors.orange),
+          const SizedBox(width: 8), Text("Mark $newStatus"),
+        ]),
+        content: Text("Change status of $count selected students to $newStatus?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: newStatus == "Alumni" ? Colors.green : Colors.orange,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+            ),
+            child: const Text("Confirm", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final batch = FirebaseFirestore.instance.batch();
+      for (final id in _selected) {
+        batch.update(FirebaseFirestore.instance.collection("students").doc(id), {"status": newStatus});
+      }
+      await batch.commit();
+      setState(() { _selected.clear(); _selectMode = false; });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("✅ $count students moved to $newStatus"), backgroundColor: Colors.green));
+    }
+  }
+
   void _selectAll(List<Map<String, dynamic>> filtered) {
     setState(() {
       if (_selected.length == filtered.length) _selected.clear();
@@ -87,7 +128,7 @@ class _ViewStudentsState extends State<ViewStudents> {
         title: _selectMode
             ? Text("${_selected.length} selected",
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
-            : const Text("All Students",
+            : const Text("Manage Students",
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         actions: [
           if (!_selectMode)
@@ -99,7 +140,6 @@ class _ViewStudentsState extends State<ViewStudents> {
         ],
       ),
       body: StreamBuilder<QuerySnapshot>(
-        // ✅ Filter by collegeId
         stream: FirebaseFirestore.instance.collection("students")
             .where("collegeId", isEqualTo: widget.collegeId).snapshots(),
         builder: (context, snapshot) {
@@ -107,20 +147,31 @@ class _ViewStudentsState extends State<ViewStudents> {
 
           final all = snapshot.data!.docs.map((doc) {
             final d = doc.data() as Map<String, dynamic>;
+
+            final rawStatus = (d["status"] as String? ?? "Active").trim().toLowerCase();
+            final normalizedStatus = rawStatus == "alumni" ? "Alumni" : "Active";
+
             return {
               "id": doc.id, "doc": doc,
               "name":       (d["name"]       as String? ?? "-").toUpperCase(),
               "rollNumber": d["rollNumber"]  as String? ?? "-",
               "course":     d["course"]      as String? ?? "-",
               "division":   d["division"]    as String? ?? "-",
+              "semester":   d["semester"]    as String? ?? "-",
               "username":   d["username"]    as String? ?? "-",
+              "status":     normalizedStatus,
             };
-          }).toList();
+          }).where((s) => s["status"] == _viewMode).toList();
 
           all.sort((a, b) => (a["rollNumber"] as String).compareTo(b["rollNumber"] as String));
 
           final divisions = <String>{"All", ...all.map((s) => s["division"] as String).where((d) => d != "-")};
+          final semesters = <String>{"All", ...all.map((s) => s["semester"] as String).where((sem) => sem != "-").toList()..sort()};
           final courses   = <String>{..._staticCourses, ...all.map((s) => s["course"] as String).where((c) => c != "-")};
+
+          final safeCourse   = courses.contains(_filterCourse) ? _filterCourse : "All";
+          final safeSemester = semesters.contains(_filterSemester) ? _filterSemester : "All";
+          final safeDivision = divisions.contains(_filterDivision) ? _filterDivision : "All";
 
           final filtered = all.where((s) {
             final q = _search.toLowerCase();
@@ -128,21 +179,34 @@ class _ViewStudentsState extends State<ViewStudents> {
                 (s["name"] as String).toLowerCase().contains(q) ||
                 (s["rollNumber"] as String).toLowerCase().contains(q) ||
                 (s["username"] as String).toLowerCase().contains(q);
-            final mc = _filterCourse   == "All" || s["course"]   == _filterCourse;
-            final md = _filterDivision == "All" || s["division"] == _filterDivision;
-            return ms && mc && md;
+
+            final mc = safeCourse   == "All" || s["course"]   == safeCourse;
+            final md = safeDivision == "All" || s["division"] == safeDivision;
+            final mSem = safeSemester == "All" || s["semester"] == safeSemester;
+
+            return ms && mc && md && mSem;
           }).toList();
 
           final allSel = _selected.length == filtered.length && filtered.isNotEmpty;
 
           return Column(children: [
-            // Search
-            Container(color: Colors.white, padding: const EdgeInsets.fromLTRB(12,10,12,0),
+
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(children: [
+                Expanded(child: _toggleBtn("Active", Icons.people_alt_rounded)),
+                const SizedBox(width: 8),
+                Expanded(child: _toggleBtn("Alumni", Icons.school_rounded)),
+              ]),
+            ),
+
+            Container(color: Colors.white, padding: const EdgeInsets.fromLTRB(12,6,12,0),
               child: TextField(
                 controller: _searchCtrl,
                 onChanged: (v) => setState(() => _search = v),
                 decoration: InputDecoration(
-                  hintText: "Search by name, roll no, username...",
+                  hintText: "Search by name, roll no...",
                   hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                   prefixIcon: const Icon(Icons.search, color: Color(0xFF1E3A5F)),
                   suffixIcon: _search.isNotEmpty
@@ -156,45 +220,66 @@ class _ViewStudentsState extends State<ViewStudents> {
               ),
             ),
 
-            // Filters
-            Container(color: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(children: [
-                Expanded(child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(children: courses.map((c) {
-                    final sel = c == _filterCourse;
-                    return GestureDetector(
-                      onTap: () => setState(() => _filterCourse = c),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: sel ? const Color(0xFF1E3A5F) : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(c, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-                            color: sel ? Colors.white : Colors.grey.shade700)),
-                      ),
-                    );
-                  }).toList()),
-                )),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(20)),
-                  child: DropdownButtonHideUnderline(child: DropdownButton<String>(
-                    value: _filterDivision, isDense: true,
-                    style: const TextStyle(color: Color(0xFF1E3A5F), fontSize: 12, fontWeight: FontWeight.w600),
-                    icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF1E3A5F), size: 18),
-                    items: divisions.map((d) => DropdownMenuItem(value: d, child: Text("Div: $d"))).toList(),
-                    onChanged: (v) => setState(() => _filterDivision = v!),
-                  )),
-                ),
-              ]),
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                  children: [
+                    Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(children: courses.map((c) {
+                            final sel = c == safeCourse;
+                            return GestureDetector(
+                              onTap: () => setState(() => _filterCourse = c),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                margin: const EdgeInsets.only(right: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: sel ? const Color(0xFF1E3A5F) : Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(c, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                                    color: sel ? Colors.white : Colors.grey.shade700)),
+                              ),
+                            );
+                          }).toList()),
+                        )
+                    ),
+                    const SizedBox(width: 8),
+
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(20)),
+                      child: DropdownButtonHideUnderline(child: DropdownButton<String>(
+                        value: safeSemester,
+                        isDense: true,
+                        style: const TextStyle(color: Color(0xFF1E3A5F), fontSize: 11, fontWeight: FontWeight.w600),
+                        icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF1E3A5F), size: 16),
+                        items: semesters.map((s) => DropdownMenuItem(
+                            value: s, child: Text(s == "All" ? "Sem: All" : s))).toList(),
+                        onChanged: (v) => setState(() => _filterSemester = v!),
+                      )),
+                    ),
+                    const SizedBox(width: 8),
+
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(20)),
+                      child: DropdownButtonHideUnderline(child: DropdownButton<String>(
+                        value: safeDivision,
+                        isDense: true,
+                        style: const TextStyle(color: Color(0xFF1E3A5F), fontSize: 11, fontWeight: FontWeight.w600),
+                        icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF1E3A5F), size: 16),
+                        items: divisions.map((d) => DropdownMenuItem(value: d, child: Text("Div: $d"))).toList(),
+                        onChanged: (v) => setState(() => _filterDivision = v!),
+                      )),
+                    ),
+                  ]
+              ),
             ),
 
-            // Select toolbar
             if (_selectMode)
               Container(
                 color: const Color(0xFF1E3A5F).withValues(alpha: 0.05),
@@ -214,33 +299,46 @@ class _ViewStudentsState extends State<ViewStudents> {
                         child: allSel ? const Icon(Icons.check, color: Colors.white, size: 14) : null,
                       ),
                       const SizedBox(width: 8),
-                      Text(allSel ? "Deselect All" : "Select All (${filtered.length})",
+                      Text(allSel ? "Deselect" : "Select All",
                           style: const TextStyle(color: Color(0xFF1E3A5F), fontWeight: FontWeight.w600, fontSize: 13)),
                     ]),
                   ),
                   const Spacer(),
-                  if (_selected.isNotEmpty)
+                  if (_selected.isNotEmpty) ...[
+                    ElevatedButton.icon(
+                      onPressed: () => _bulkChangeStatus(_viewMode == "Active" ? "Alumni" : "Active"),
+                      icon: Icon(_viewMode == "Active" ? Icons.school : Icons.restore, size: 14, color: Colors.white),
+                      label: Text(_viewMode == "Active" ? "Alumni" : "Restore",
+                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: _viewMode == "Active" ? Colors.green : Colors.orange,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                    ),
+                    const SizedBox(width: 6),
                     ElevatedButton.icon(
                       onPressed: () => _confirmBulkDelete(context, all),
-                      icon: const Icon(Icons.delete_rounded, size: 16, color: Colors.white),
-                      label: Text("Delete ${_selected.length}",
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      icon: const Icon(Icons.delete_rounded, size: 14, color: Colors.white),
+                      label: const Text("Delete", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.red,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
                     ),
+                  ]
                 ]),
               ),
 
-            // Count
             Container(color: const Color(0xFFF5F0E6), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(children: [
                 Text("${filtered.length} students", style: const TextStyle(
                     fontWeight: FontWeight.bold, color: Color(0xFF1E3A5F), fontSize: 13)),
                 const Spacer(),
-                if (_search.isNotEmpty || _filterCourse != "All" || _filterDivision != "All")
+                if (_search.isNotEmpty || _filterCourse != "All" || _filterDivision != "All" || _filterSemester != "All")
                   GestureDetector(
-                    onTap: () { _searchCtrl.clear(); setState(() { _search = ""; _filterCourse = "All"; _filterDivision = "All"; }); },
+                    onTap: () {
+                      _searchCtrl.clear();
+                      setState(() { _search = ""; _filterCourse = "All"; _filterDivision = "All"; _filterSemester = "All"; });
+                    },
                     child: const Row(children: [
                       Icon(Icons.close, size: 14, color: Colors.red),
                       SizedBox(width: 3),
@@ -250,7 +348,6 @@ class _ViewStudentsState extends State<ViewStudents> {
               ]),
             ),
 
-            // List
             Expanded(
               child: filtered.isEmpty
                   ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -294,46 +391,73 @@ class _ViewStudentsState extends State<ViewStudents> {
                               : Text("${index+1}", style: const TextStyle(
                               fontWeight: FontWeight.bold, color: Color(0xFF1E3A5F), fontSize: 14))),
                         ),
+                        // ✅ RESPONSIVE FIX IS HERE (Expanded & TextOverflow.ellipsis)
                         Expanded(child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(s["name"] as String, style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1A1A2E))),
+                            Text(s["name"] as String,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1A1A2E))),
                             const SizedBox(height: 4),
                             Row(children: [
                               const Icon(Icons.badge_outlined, size: 11, color: Colors.grey),
                               const SizedBox(width: 4),
                               Text(s["rollNumber"] as String, style: const TextStyle(
                                   fontSize: 12, color: Color(0xFF1E3A5F), fontWeight: FontWeight.w600)),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 8),
                               const Icon(Icons.school_outlined, size: 11, color: Colors.grey),
                               const SizedBox(width: 4),
-                              Text("${s["course"]}  ·  Div ${s["division"]}",
-                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                              Expanded( // Yahan aab screen size adjust ho jayega
+                                child: Text("${s["course"]} · ${s["semester"]} · Div ${s["division"]}",
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                              ),
                             ]),
                           ]),
                         )),
                         if (!_selectMode)
                           PopupMenuButton(
                             icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
-                            onSelected: (value) {
-                              if (value == "edit") Navigator.push(context, MaterialPageRoute(
-                                  builder: (_) => EditStudent(studentId: id, data: doc)));
-                              if (value == "delete") showDialog(context: context, builder: (_) => AlertDialog(
-                                title: const Text("Delete Student"),
-                                content: Text("Delete ${s["name"]}?"),
-                                actions: [
-                                  TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-                                  TextButton(
-                                    onPressed: () { FirebaseFirestore.instance.collection("students").doc(id).delete(); Navigator.pop(context); },
-                                    child: const Text("Delete", style: TextStyle(color: Colors.red)),
-                                  ),
-                                ],
-                              ));
+                            onSelected: (value) async {
+                              if (value == "edit") {
+                                Navigator.push(context, MaterialPageRoute(
+                                    builder: (_) => EditStudent(studentId: id, data: doc)));
+                              }
+                              else if (value == "alumni") {
+                                await FirebaseFirestore.instance.collection("students").doc(id).update({"status": "Alumni"});
+                                if(context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("${s["name"]} marked as Alumni"), backgroundColor: Colors.green));
+                                }
+                              }
+                              else if (value == "active") {
+                                await FirebaseFirestore.instance.collection("students").doc(id).update({"status": "Active"});
+                                if(context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("${s["name"]} restored to Active"), backgroundColor: Colors.orange));
+                                }
+                              }
+                              else if (value == "delete") {
+                                showDialog(context: context, builder: (_) => AlertDialog(
+                                  title: const Text("Delete Student"),
+                                  content: Text("Delete ${s["name"]}?"),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+                                    TextButton(
+                                      onPressed: () { FirebaseFirestore.instance.collection("students").doc(id).delete(); Navigator.pop(context); },
+                                      child: const Text("Delete", style: TextStyle(color: Colors.red)),
+                                    ),
+                                  ],
+                                ));
+                              }
                             },
-                            itemBuilder: (context) => const [
-                              PopupMenuItem(value: "edit",   child: Row(children: [Icon(Icons.edit_outlined, size: 16, color: Color(0xFF1E3A5F)), SizedBox(width: 8), Text("Edit")])),
-                              PopupMenuItem(value: "delete", child: Row(children: [Icon(Icons.delete_outline, size: 16, color: Colors.red), SizedBox(width: 8), Text("Delete", style: TextStyle(color: Colors.red))])),
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(value: "edit",   child: Row(children: [Icon(Icons.edit_outlined, size: 16, color: Color(0xFF1E3A5F)), SizedBox(width: 8), Text("Edit")])),
+                              if (_viewMode == "Active")
+                                const PopupMenuItem(value: "alumni", child: Row(children: [Icon(Icons.school, size: 16, color: Colors.green), SizedBox(width: 8), Text("Mark Alumni")])),
+                              if (_viewMode == "Alumni")
+                                const PopupMenuItem(value: "active", child: Row(children: [Icon(Icons.restore, size: 16, color: Colors.orange), SizedBox(width: 8), Text("Restore")])),
+                              const PopupMenuItem(value: "delete", child: Row(children: [Icon(Icons.delete_outline, size: 16, color: Colors.red), SizedBox(width: 8), Text("Delete", style: TextStyle(color: Colors.red))])),
                             ],
                           ),
                       ])),
@@ -349,10 +473,48 @@ class _ViewStudentsState extends State<ViewStudents> {
           ? FloatingActionButton.extended(
         backgroundColor: const Color(0xFF1E3A5F),
         icon: const Icon(Icons.checklist_rounded, color: Colors.white),
-        label: const Text("Select & Delete", style: TextStyle(color: Colors.white, fontSize: 12)),
+        label: const Text("Select & Manage", style: TextStyle(color: Colors.white, fontSize: 12)),
         onPressed: () => setState(() { _selectMode = true; _selected.clear(); }),
       )
           : null,
+    );
+  }
+
+  Widget _toggleBtn(String label, IconData icon) {
+    final bool isSelected = _viewMode == label;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _viewMode = label;
+          _selected.clear();
+          _selectMode = false;
+          _filterCourse = "All";
+          _filterDivision = "All";
+          _filterSemester = "All";
+          _searchCtrl.clear();
+          _search = "";
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF1E3A5F) : Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: isSelected ? const Color(0xFF1E3A5F) : Colors.grey.shade300)
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 16, color: isSelected ? Colors.white : Colors.grey.shade700),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(
+                fontWeight: FontWeight.bold, fontSize: 13,
+                color: isSelected ? Colors.white : Colors.grey.shade700
+            ))
+          ],
+        ),
+      ),
     );
   }
 }
@@ -370,7 +532,9 @@ class _EditStudentState extends State<EditStudent> {
   late TextEditingController nameCtrl, emailCtrl, contactCtrl, usernameCtrl, rollCtrl;
   static const _courses   = ["BCA","MCA","MSIT","BSIT"];
   static const _divisions = ["A","B","C","D"];
-  String? _course, _division;
+  static const _semesters = ["Sem 1", "Sem 2", "Sem 3", "Sem 4", "Sem 5", "Sem 6", "Sem 7", "Sem 8"];
+
+  String? _course, _division, _semester;
 
   @override
   void initState() {
@@ -381,10 +545,14 @@ class _EditStudentState extends State<EditStudent> {
     contactCtrl  = TextEditingController(text: d["contact"]    as String? ?? "");
     usernameCtrl = TextEditingController(text: d["username"]   as String? ?? "");
     rollCtrl     = TextEditingController(text: d["rollNumber"] as String? ?? "");
+
     final c = d["course"]   as String? ?? "";
     final dv = d["division"] as String? ?? "";
+    final sm = d["semester"] as String? ?? "";
+
     _course   = _courses.contains(c)    ? c  : null;
     _division = _divisions.contains(dv) ? dv : null;
+    _semester = _semesters.contains(sm) ? sm : null;
   }
 
   Future<void> update() async {
@@ -394,6 +562,7 @@ class _EditStudentState extends State<EditStudent> {
       "contact":    contactCtrl.text.trim(),
       "course":     _course   ?? "",
       "division":   _division ?? "",
+      "semester":   _semester ?? "",
       "username":   usernameCtrl.text.trim(),
       "rollNumber": rollCtrl.text.trim(),
     });
@@ -410,6 +579,7 @@ class _EditStudentState extends State<EditStudent> {
         _f(nameCtrl,     "Name"),
         _f(rollCtrl,     "Roll Number"),
         _dd("Course",   _courses,   _course,   (v) => setState(() => _course   = v)),
+        _dd("Semester", _semesters, _semester, (v) => setState(() => _semester = v)),
         _dd("Division", _divisions, _division, (v) => setState(() => _division = v)),
         _f(usernameCtrl, "Username"),
         _f(emailCtrl,    "Email (optional)"),
